@@ -1,0 +1,26 @@
+services:
+  db:
+    image: mysql:latest
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    env_file:
+      - ./db.env
+
+  web:
+    image: golang:latest
+    working_dir: /app
+    command: go run app.go
+    volumes:
+      - .:/app
+    ports:
+      - "58080:80"
+    depends_on:
+      - db
+    env_file:
+      - ./db.env
+
+volumes:
+  db_data:
