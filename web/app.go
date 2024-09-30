@@ -27,7 +27,7 @@ func main() {
 	dbHandler := handler.NewDBHandler(db)
 
 	engine.GET("/", handler.RootHandler)
-	engine.POST("/tmp", dbHandler.SearchTransit)
+	engine.POST("/tmp", dbHandler.SearchTransitHandle)
 
 	srv := &http.Server{
 		Addr:    ":80",
