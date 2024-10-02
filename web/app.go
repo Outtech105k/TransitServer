@@ -27,7 +27,7 @@ func main() {
 	dbHandler := handler.NewDBHandler(db)
 
 	engine.GET("/", handler.RootHandler)
-	engine.POST("/tmp", dbHandler.SearchTransitHandle)
+	engine.POST("/search", dbHandler.SearchTransitHandle)
 
 	srv := &http.Server{
 		Addr:    ":80",
@@ -57,7 +57,12 @@ func main() {
 
 func connectDB(MaxRetryCount int) (*sql.DB, error) {
 	for r := 1; r <= MaxRetryCount; r++ {
-		db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(db:3306)/%s?parseTime=true", os.Getenv("MYSQL_USER"), os.Getenv("MYSQL_PASSWORD"), os.Getenv("MYSQL_DATABASE")))
+		db, err := sql.Open("mysql", fmt.Sprintf(
+			"%s:%s@tcp(db:3306)/%s?parseTime=true",
+			os.Getenv("MYSQL_USER"),
+			os.Getenv("MYSQL_PASSWORD"),
+			os.Getenv("MYSQL_DATABASE"),
+		))
 		if err != nil {
 			return nil, fmt.Errorf("dbConnection: %w", err)
 		}

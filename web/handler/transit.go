@@ -3,6 +3,7 @@ package handler
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -31,25 +32,17 @@ type Operation struct {
 	ArriveTime      string `json:"arrive_time"`
 }
 
-type Route []Operation
+type Route struct {
+	Operations  []Operation
+	ViaStations map[uint]struct{}
+}
 type Routes []Route
 
-func (routes *Routes) enqueue(new_route Route) {
-	*routes = append(*routes, new_route)
+type TransitSearchResponse struct {
+	Routes []RouteResponse `json:"routes"`
 }
 
-func (routes *Routes) dequeue() (Route, error) {
-	if len(*routes) == 0 {
-		return Route{}, ErrQueueEmpty
-	}
-	route := (*routes)[0]
-	*routes = (*routes)[1:]
-	return route, nil
-}
-
-func (routes *Routes) isEmpty() bool {
-	return len(*routes) == 0
-}
+type RouteResponse []Operation
 
 type DBHandler struct {
 	DB *sql.DB
@@ -78,58 +71,27 @@ func (h *DBHandler) SearchTransitHandle(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"data": routes})
+	routesResponse := make([]RouteResponse, len(routes))
+	for i, v := range routes {
+		routesResponse[i] = v.Operations
+	}
+
+	ctx.JSON(http.StatusOK, TransitSearchResponse{
+		Routes: routesResponse,
+	})
 }
 
 func searchTransit(req TransitSearchRequest, db *sql.DB) ([]Route, error) {
-	searchingRoutes := make(Routes, 0, 100)
-	reachedRoutes := make(Routes, 0, 10)
-	// ルート起点を検索
-	operations, err := searchNextOperations(db, req.DepartStationID, *req.DepartDateTime)
+	firstOperations, err := searchNextOperations(db, req.DepartStationID, *req.DepartDateTime)
 	if err != nil {
-		return []Route{}, err
+		return []Route{}, fmt.Errorf("searchTransit: %w", err)
 	}
 
-	for _, op := range operations {
-		searchingRoutes.enqueue(Route{op})
-	}
-
-	// ルート続きを検索
-	cnt := 0
-	for !searchingRoutes.isEmpty() && cnt < 1000000 {
-		// 目的地に到達したルートを排除
-		route, _ := searchingRoutes.dequeue()
-		if route[len(route)-1].ArriveStationID == req.ArriveStationID {
-			reachedRoutes = append(reachedRoutes, route)
-		} else {
-			parsedTime, err := time.Parse("15:04:05", route[len(route)-1].ArriveTime)
-			if err != nil {
-				return nil, err
-			}
-
-			operations, err := searchNextOperations(
-				db,
-				route[len(route)-1].ArriveStationID,
-				time.Date(
-					req.DepartDateTime.Year(),
-					req.DepartDateTime.Month(),
-					req.DepartDateTime.Day(),
-					parsedTime.Hour(),
-					parsedTime.Minute(),
-					parsedTime.Second(),
-					parsedTime.Nanosecond(),
-					time.Local,
-				),
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			for _, op := range operations {
-				searchingRoutes.enqueue(append(route, op))
-			}
-		}
-		cnt++
+	reachedRoutes := make([]Route, 0, 100)
+	for _, operation := range firstOperations {
+		reachedRoutes = append(reachedRoutes, Route{
+			Operations: []Operation{operation},
+		})
 	}
 
 	return reachedRoutes, nil
@@ -186,11 +148,18 @@ func checkExistsStationIDs(db *sql.DB, depID, arrID uint) error {
 // 指定駅から指定時間以降に発車する列車を取得
 func searchNextOperations(db *sql.DB, departStationID uint, departTime time.Time) ([]Operation, error) {
 	rows, err := db.Query(`
-SELECT train_id, op_order, dep_sta_id, dep_time, arr_sta_id, arr_time
-FROM operations
-WHERE dep_sta_id = ?
-AND dep_time >= ?
-ORDER BY dep_time
+SELECT o1.train_id, o1.op_order, o1.dep_sta_id, o1.dep_time, o1.arr_sta_id, o1.arr_time
+FROM operations o1 
+INNER JOIN (
+	SELECT dep_sta_id, MIN(dep_time) AS next_dep_time, arr_sta_id
+	FROM operations
+	WHERE dep_sta_id = ? AND dep_time >= ?
+	GROUP BY dep_sta_id, arr_sta_id
+	ORDER BY dep_sta_id ASC
+) o2
+ON o1.dep_sta_id = o2.dep_sta_id
+AND o1.dep_time = o2.next_dep_time
+AND o1.arr_sta_id = o2.arr_sta_id
 `,
 		departStationID,
 		departTime.Format("15:04:05"),
