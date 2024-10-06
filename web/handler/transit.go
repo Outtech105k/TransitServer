@@ -82,6 +82,20 @@ func (h *DBHandler) SearchTransitHandle(ctx *gin.Context) {
 		return
 	}
 
+	// 時刻をJSTに設定
+	jst, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		log.Printf("Error loading location: %v", err)
+		ctx.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	if request.DepartDateTime != nil {
+		*request.DepartDateTime = (*request.DepartDateTime).In(jst)
+	}
+	if request.ArriveDateTime != nil {
+		*request.ArriveDateTime = (*request.ArriveDateTime).In(jst)
+	}
+
 	routes, err := searchTransit(request, h.DB)
 	if err != nil {
 		log.Printf("Error searching transit: %v", err)
