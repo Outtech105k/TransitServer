@@ -22,24 +22,42 @@ type Operation struct {
 
 // 指定駅から指定時間以降に発車する列車を取得
 // TODO: 00:00を超えて走行する列車の日付更新
-// TODO: 日付を超えた乗り換え案内
-func SearchNextOperations(db *sql.DB, departStationID uint, fastestDepartDateTime time.Time) ([]Operation, error) {
-	rows, err := db.Query(`
-SELECT o1.train_id, o1.op_order, o1.dep_sta_id, o1.dep_time, o1.arr_sta_id, o1.arr_time
-FROM operations o1 
-INNER JOIN (
-	SELECT dep_sta_id, MIN(dep_time) AS next_dep_time, arr_sta_id
+func SearchNextDepartOperations(db *sql.DB, departStationID uint, fastestDepartDateTime time.Time) ([]Operation, error) {
+	fastestDepartDateTimeString := fastestDepartDateTime.Format("15:04:05")
+	sql := `
+ WITH operation_waits AS (
+	SELECT train_id, op_order, dep_time,
+	CASE
+		WHEN dep_time >= ? THEN TIMEDIFF(dep_time, ?)
+		ELSE TIMEDIFF(ADDTIME(dep_time, "24:00:00"), ?)
+	END AS wait_time,
+	ROW_NUMBER() OVER (
+		PARTITION BY dep_sta_id, arr_sta_id
+		ORDER BY CASE
+			WHEN dep_time >= ? THEN TIMEDIFF(dep_time, ?)
+			ELSE TIMEDIFF(ADDTIME(dep_time, "24:00:00"), ?)
+		END
+	) dep_order_arr_grouped
 	FROM operations
-	WHERE dep_sta_id = ? AND dep_time >= ?
-	GROUP BY dep_sta_id, arr_sta_id
-	ORDER BY dep_sta_id ASC
-) o2
-ON o1.dep_sta_id = o2.dep_sta_id
-AND o1.dep_time = o2.next_dep_time
-AND o1.arr_sta_id = o2.arr_sta_id
-`,
+	WHERE dep_sta_id = ?
+)
+SELECT o.train_id, o.op_order, o.dep_sta_id, o.dep_time, o.arr_sta_id, o.arr_time
+FROM operations o
+INNER JOIN operation_waits ow
+ON ow.train_id = o.train_id
+AND ow.op_order = o.op_order
+AND ow.dep_order_arr_grouped = 1
+ORDER BY wait_time
+`
+	rows, err := db.Query(
+		sql,
+		fastestDepartDateTimeString,
+		fastestDepartDateTimeString,
+		fastestDepartDateTimeString,
+		fastestDepartDateTimeString,
+		fastestDepartDateTimeString,
+		fastestDepartDateTimeString,
 		departStationID,
-		fastestDepartDateTime.Format("15:04:05"),
 	)
 	if err != nil {
 		return []Operation{}, err
@@ -74,7 +92,8 @@ AND o1.arr_sta_id = o2.arr_sta_id
 	return operations, nil
 }
 
-func updateTimeWithString(originalTime time.Time, timeString string) (time.Time, error) {
+// 順探索のみ対応
+func updateTimeWithString(originalDateTime time.Time, timeString string) (time.Time, error) {
 	// "15:04:05"形式の時刻部分をパース
 	parsedTime, err := time.Parse("15:04:05", timeString)
 	if err != nil {
@@ -83,15 +102,21 @@ func updateTimeWithString(originalTime time.Time, timeString string) (time.Time,
 
 	// 年月日を維持しつつ、時刻を上書き
 	updatedTime := time.Date(
-		originalTime.Year(),
-		originalTime.Month(),
-		originalTime.Day(),
-		parsedTime.Hour(),       // 時刻部分を置き換え
-		parsedTime.Minute(),     // 分部分を置き換え
-		parsedTime.Second(),     // 秒部分を置き換え
-		0,                       // ナノ秒は0に設定
-		originalTime.Location(), // タイムゾーンも元のものを使用
+		originalDateTime.Year(),
+		originalDateTime.Month(),
+		originalDateTime.Day(),
+		parsedTime.Hour(),           // 時刻部分を置き換え
+		parsedTime.Minute(),         // 分部分を置き換え
+		parsedTime.Second(),         // 秒部分を置き換え
+		0,                           // ナノ秒は0に設定
+		originalDateTime.Location(), // タイムゾーンも元のものを使用
 	)
+
+	// parsedTimeがoriginalTimeの時刻より前なら、updatedTimeを次の日とみなす
+	// これにより、日付を跨いだ運行・乗り換えを可能とする
+	if originalDateTime.After(updatedTime) {
+		updatedTime = updatedTime.AddDate(0, 0, 1)
+	}
 
 	return updatedTime, nil
 }

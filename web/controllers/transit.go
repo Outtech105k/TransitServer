@@ -40,79 +40,82 @@ func (r *Routes) isEmpty() bool {
 func SearchTransit(req forms.TransitSearchForm, db *sql.DB) ([]Route, error) {
 	reachedRoutes := make(Routes, 0, 10)
 
-	firstOperations, err := models.SearchNextOperations(db, req.DepartStationID, *req.DepartDateTime)
-	if err != nil {
-		return []Route{}, fmt.Errorf("searchTransit: %w", err)
-	}
-
-	searchingRouteQueue := make(Routes, 0, 100)
-	for _, operation := range firstOperations {
-		newRoute := Route{
-			Operations: []models.Operation{operation},
-			ViaStations: map[uint]struct{}{
-				operation.DepartStationID: {},
-				operation.ArriveStationID: {},
-			},
-		}
-		searchingRouteQueue.enqueue(newRoute)
-	}
-
-	// 続けて幅優先探索で先の経路を取得する
-	for !searchingRouteQueue.isEmpty() {
-
-		// TEMP: ルート長さが2に達したらやめる
-		if len(searchingRouteQueue[0].Operations) == 20 {
-			break
-		}
-
-		// 先頭の探索ルートを抜き出す
-		lastRoute, err := searchingRouteQueue.dequeue()
+	// 出発時刻が設定された場合の探索
+	if req.DepartDateTime != nil {
+		// 出発駅から発車する直近列車を取得
+		firstOperations, err := models.SearchNextDepartOperations(db, req.DepartStationID, *req.DepartDateTime)
 		if err != nil {
-			return []Route{}, fmt.Errorf("dequeueSearchingRouteQueue: %w", err)
+			return []Route{}, fmt.Errorf("searchTransit: %w", err)
 		}
 
-		// ルートが目的地に到達したら完成ルート一覧に追加
-		if lastRoute.Operations[len(lastRoute.Operations)-1].ArriveStationID == req.ArriveStationID {
-			reachedRoutes = append(reachedRoutes, lastRoute)
-			continue
+		// 取得結果からルートを生成
+		searchingRouteQueue := make(Routes, 0, 100)
+		for _, operation := range firstOperations {
+			newRoute := Route{
+				Operations: []models.Operation{operation},
+				ViaStations: map[uint]struct{}{
+					operation.DepartStationID: {},
+					operation.ArriveStationID: {},
+				},
+			}
+			searchingRouteQueue.enqueue(newRoute)
 		}
 
-		// 新たな探索を行い、発見数だけ延長する
-		newOperations, err := models.SearchNextOperations(
-			db,
-			lastRoute.Operations[len(lastRoute.Operations)-1].ArriveStationID,
-			lastRoute.Operations[len(lastRoute.Operations)-1].ArriveTime,
-		)
-		if err != nil {
-			return []Route{}, fmt.Errorf("searchNextOperations: %w", err)
-		}
+		// 続けて幅優先探索で先の経路を取得する
+		for !searchingRouteQueue.isEmpty() {
+			// 先頭の探索ルートを抜き出す
+			lastRoute, err := searchingRouteQueue.dequeue()
+			if err != nil {
+				return []Route{}, fmt.Errorf("dequeueSearchingRouteQueue: %w", err)
+			}
 
-		// 発見された移動に対し、経由駅に戻らない場合はenqueueする
-		for _, newOperation := range newOperations {
-
-			if _, isExists := lastRoute.ViaStations[newOperation.ArriveStationID]; isExists {
+			// ルートが目的地に到達したら完成ルート一覧に追加
+			if lastRoute.Operations[len(lastRoute.Operations)-1].ArriveStationID == req.ArriveStationID {
+				reachedRoutes = append(reachedRoutes, lastRoute)
 				continue
 			}
 
-			// Deep Copyをしてから新到達駅IDを追加
-			newViaStations := make(map[uint]struct{})
-			for viaStationID := range lastRoute.ViaStations {
-				newViaStations[viaStationID] = struct{}{}
-			}
-			newViaStations[newOperation.ArriveStationID] = struct{}{}
-
-			// Deep Copy をしてから新しい Operation を追加
-			copiedLastOperations := make([]models.Operation, len(lastRoute.Operations))
-			copy(copiedLastOperations, lastRoute.Operations)
-
-			extendedRoute := Route{
-				Operations:  append(copiedLastOperations, newOperation),
-				ViaStations: newViaStations,
+			// 最後に到達した駅・時刻を基準に新たな探索
+			newOperations, err := models.SearchNextDepartOperations(
+				db,
+				lastRoute.Operations[len(lastRoute.Operations)-1].ArriveStationID,
+				lastRoute.Operations[len(lastRoute.Operations)-1].ArriveTime,
+			)
+			if err != nil {
+				return []Route{}, fmt.Errorf("searchNextOperations: %w", err)
 			}
 
-			searchingRouteQueue.enqueue(extendedRoute)
+			// 発見された移動について、適切なものを探索キューに追加
+			for _, newOperation := range newOperations {
+				// 発見された移動に対し、経由駅に戻る移動は除外する
+				if _, isExists := lastRoute.ViaStations[newOperation.ArriveStationID]; isExists {
+					continue
+				}
+
+				// 経由駅集合のDeep Copyをしてから新到達駅IDを追加
+				newViaStations := make(map[uint]struct{})
+				for viaStationID := range lastRoute.ViaStations {
+					newViaStations[viaStationID] = struct{}{}
+				}
+				newViaStations[newOperation.ArriveStationID] = struct{}{}
+
+				// 探索済みルートのDeep Copy をして、新たなルートオブジェクトを生成
+				copiedLastOperations := make([]models.Operation, len(lastRoute.Operations))
+				copy(copiedLastOperations, lastRoute.Operations)
+
+				// ルートをEnqueue
+				extendedRoute := Route{
+					Operations:  append(copiedLastOperations, newOperation),
+					ViaStations: newViaStations,
+				}
+				searchingRouteQueue.enqueue(extendedRoute)
+			}
 		}
+
+		// 目的地に到達したルートのみ返す
+		return reachedRoutes, nil
+
 	}
 
-	return reachedRoutes, nil
+	return []Route{}, fmt.Errorf("not implemented")
 }
