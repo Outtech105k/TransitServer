@@ -1,4 +1,4 @@
-module outtech105.com/gin_template
+module outtech105.com/transit_server
 
 go 1.22.2
 
