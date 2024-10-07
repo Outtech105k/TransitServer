@@ -81,7 +81,7 @@ ORDER BY wait_time
 			return []Operation{}, fmt.Errorf("updateDepartTimeString: %w", err)
 		}
 
-		op.ArriveTime, err = updateTimeWithString(fastestDepartDateTime, arriveTimeString)
+		op.ArriveTime, err = updateTimeWithString(op.DepartTime, arriveTimeString)
 		if err != nil {
 			return []Operation{}, fmt.Errorf("updateArriveTimeString: %w", err)
 		}
