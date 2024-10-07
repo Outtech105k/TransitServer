@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -48,6 +49,17 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 			return
 		}
 
+		// 到着時刻順にソート
+		sort.SliceStable(routes, func(i, j int) bool {
+			return routes[i].Operations[len(routes[i].Operations)-1].ArriveTime.Before(
+				routes[j].Operations[len(routes[j].Operations)-1].ArriveTime,
+			)
+		})
+
+		// 結果を5件以下に制限
+		routes = routes[0:min(len(routes), 5)]
+
+		// 検索結果をレスポンス構造体に代入
 		routesView := make([]views.RouteView, len(routes))
 		for i, route := range routes {
 			operationsView := make([]views.OperationView, len(route.Operations))
