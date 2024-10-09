@@ -2,6 +2,8 @@ package views
 
 import "time"
 
+// APIリクエストのレスポンス型
+
 type OperationView struct {
 	TrainID         uint      `json:"train_id"`
 	Order           uint      `json:"order"`

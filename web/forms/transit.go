@@ -2,6 +2,8 @@ package forms
 
 import "time"
 
+// APIリクエストの定型
+
 type TransitSearchForm struct {
 	DepartStationID uint       `json:"depart_station_id" binding:"required"`
 	DepartDateTime  *time.Time `json:"depart_datetime"`

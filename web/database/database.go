@@ -9,6 +9,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
+// MySQL接続処理
 func ConnectDB(MaxRetryCount int) (*sql.DB, error) {
 	for r := 1; r <= MaxRetryCount; r++ {
 		db, err := sql.Open("mysql", fmt.Sprintf(

@@ -20,12 +20,11 @@ type Operation struct {
 	ArriveTime      time.Time `json:"arrive_time"`
 }
 
-// 指定駅から指定時間以降に発車する列車を取得
-// TODO: 00:00を超えて走行する列車の日付更新
+// 指定駅から発車する列車を取得
 func SearchNextDepartOperations(db *sql.DB, departStationID uint, fastestDepartDateTime time.Time) ([]Operation, error) {
 	fastestDepartDateTimeString := fastestDepartDateTime.Format("15:04:05")
 	sql := `
- WITH operation_waits AS (
+WITH operation_waits AS (
 	SELECT train_id, op_order, dep_time,
 	CASE
 		WHEN dep_time >= ? THEN TIMEDIFF(dep_time, ?)
@@ -92,35 +91,38 @@ ORDER BY wait_time
 	return operations, nil
 }
 
-// 順探索のみ対応
-func updateTimeWithString(originalDateTime time.Time, timeString string) (time.Time, error) {
-	// "15:04:05"形式の時刻部分をパース
-	parsedTime, err := time.Parse("15:04:05", timeString)
+// 順移動探索における到着時刻の変換(string -> time.Time)
+func updateTimeWithString(departDateTime time.Time, arriveTimeString string) (time.Time, error) {
+	// 到着時刻をTime型に変換(日時はデフォルト値)
+	arriveTime, err := time.Parse("15:04:05", arriveTimeString)
 	if err != nil {
 		return time.Time{}, err
 	}
 
-	// 年月日を維持しつつ、時刻を上書き
-	updatedTime := time.Date(
-		originalDateTime.Year(),
-		originalDateTime.Month(),
-		originalDateTime.Day(),
-		parsedTime.Hour(),           // 時刻部分を置き換え
-		parsedTime.Minute(),         // 分部分を置き換え
-		parsedTime.Second(),         // 秒部分を置き換え
-		0,                           // ナノ秒は0に設定
-		originalDateTime.Location(), // タイムゾーンも元のものを使用
+	// 出発日を基に、到着日時を設定
+	arriveDateTime := time.Date(
+		departDateTime.Year(),
+		departDateTime.Month(),
+		departDateTime.Day(),
+		arriveTime.Hour(),         // 時刻部分を置き換え
+		arriveTime.Minute(),       // 分部分を置き換え
+		arriveTime.Second(),       // 秒部分を置き換え
+		0,                         // ナノ秒は0に設定
+		departDateTime.Location(), // タイムゾーンも元のものを使用
 	)
 
-	// parsedTimeがoriginalTimeの時刻より前なら、updatedTimeを次の日とみなす
-	// これにより、日付を跨いだ運行・乗り換えを可能とする
-	if originalDateTime.After(updatedTime) {
-		updatedTime = updatedTime.AddDate(0, 0, 1)
+	// 出発日時より到着日時が後になるべきだが、日付を跨いでいる場合は時系列が逆転している
+	// その場合、到着日を1日後送りにすることで、日付を跨いだ運行・乗り換えを可能とする
+	// ただし、DB側が24時間を超える運転をしないことを前提とする
+	if departDateTime.After(arriveDateTime) {
+		arriveDateTime = arriveDateTime.AddDate(0, 0, 1)
 	}
 
-	return updatedTime, nil
+	return arriveDateTime, nil
 }
 
+// 駅IDの存在チェック(出発駅・到着駅)
+// NOTE: クエリ2つにすべき？
 func CheckExistsStationIDs(db *sql.DB, depID, arrID uint) error {
 	var result bool
 	err := db.QueryRow(`SELECT COUNT(*) = 2 FROM stations WHERE id IN (?, ?);`, depID, arrID).Scan(&result)

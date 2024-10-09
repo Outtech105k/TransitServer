@@ -14,16 +14,19 @@ import (
 )
 
 func main() {
+	// DB接続(リトライ10回)
 	db, err := database.ConnectDB(10)
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
 
+	// エンドポイント設定
 	engine := gin.Default()
 
 	engine.POST("/search", handler.SearchTransitHandler(db))
 
+	// Graceful Shutdownを実装したサーバを起動
 	srv := &http.Server{
 		Addr:    ":80",
 		Handler: engine,

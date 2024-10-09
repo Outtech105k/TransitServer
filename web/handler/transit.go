@@ -14,8 +14,10 @@ import (
 	"outtech105.com/transit_server/views"
 )
 
+// 乗り換え案内を行うハンドラーを返す
 func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 	return func(c *gin.Context) {
+		// リクエストJSONの必要事項解析
 		var request forms.TransitSearchForm
 		if err := c.ShouldBindJSON(&request); err != nil {
 			log.Printf("Error binding JSON in SearchTransit: %v", err)
@@ -23,11 +25,12 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 			return
 		}
 
+		// リクエストの詳細条件チェック
 		if !validateRequest(c, request, db) {
 			return
 		}
 
-		// 時刻をJSTに設定
+		// 読み込んだ時刻をJSTに設定
 		jst, err := time.LoadLocation("Asia/Tokyo")
 		if err != nil {
 			log.Printf("Error loading location: %v", err)
@@ -71,6 +74,7 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 			}
 		}
 
+		// 検索結果リクエストを返却
 		c.JSON(http.StatusOK, views.TransitSearchView{
 			Routes: routesView,
 		})
