@@ -9,6 +9,7 @@ services:
       - "3306:3306"
     env_file:
       - ./db.env
+      - ./db_sec.env
 
   web:
     image: golang:latest
@@ -22,6 +23,7 @@ services:
       - db
     env_file:
       - ./db.env
+      - ./db_sec.env
 
 volumes:
   db_data:
