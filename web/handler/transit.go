@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
 	"outtech105.com/transit_server/controllers"
 	"outtech105.com/transit_server/forms"
 	"outtech105.com/transit_server/models"
@@ -21,7 +22,7 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 		var request forms.TransitSearchForm
 		if err := c.ShouldBindJSON(&request); err != nil {
 			log.Printf("Error binding JSON in SearchTransit: %v", err)
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Parameters are missing."})
+			c.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Parameters are missing."})
 			return
 		}
 
@@ -85,20 +86,20 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 func validateRequest(ctx *gin.Context, request forms.TransitSearchForm, db *sql.DB) bool {
 	// 時刻設定が出発・到着の片方のみであるか (XOR)
 	if (request.DepartDateTime == nil) == (request.ArriveDateTime == nil) {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Either the departure time or the arrival time must be set, but not both."})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Either the departure time or the arrival time must be set, but not both."})
 		return false
 	}
 
 	// 出発・到着駅IDが異なるか
 	if request.DepartStationID == request.ArriveStationID {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Departure station ID and arrival station ID must be different."})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Departure station ID and arrival station ID must be different."})
 		return false
 	}
 
 	// 出発・到着駅IDが存在するか
 	if err := models.CheckExistsStationIDs(db, request.DepartStationID, request.ArriveStationID); err != nil {
 		if err == models.ErrStationIDsMissing {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": models.ErrStationIDsMissing.Error()})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: models.ErrStationIDsMissing.Error()})
 		} else {
 			log.Print("checkExistsStationIDs: %w", err)
 			ctx.AbortWithStatus(http.StatusInternalServerError)
@@ -108,7 +109,7 @@ func validateRequest(ctx *gin.Context, request forms.TransitSearchForm, db *sql.
 
 	// TODO: 出発時刻設定限定(Remove it future)
 	if request.ArriveDateTime != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Only Depart Time Setting (on maintenance)."})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Only Depart Time Setting (on maintenance)."})
 		return false
 	}
 
