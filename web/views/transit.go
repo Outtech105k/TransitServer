@@ -18,7 +18,8 @@ type OperationView struct {
 }
 
 type TransitSearchView struct {
-	Routes []RouteView `json:"routes"`
+	Stations []StationView `json:"stations"`
+	Routes   []RouteView   `json:"routes"`
 }
 
 type RouteView struct {

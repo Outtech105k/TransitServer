@@ -64,20 +64,39 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 		routes = routes[0:min(len(routes), 5)]
 
 		// 検索結果をレスポンス構造体に代入
+		viaStationsSet := make(map[uint]struct{})
 		routesView := make([]views.RouteView, len(routes))
 		for i, route := range routes {
 			operationsView := make([]views.OperationView, len(route.Operations))
-			for j, ope := range route.Operations {
-				operationsView[j] = views.OperationView(ope)
+			for j, operation := range route.Operations {
+				operationsView[j] = views.OperationView(operation)
+				viaStationsSet[operation.DepartStationID] = struct{}{}
+				viaStationsSet[operation.ArriveStationID] = struct{}{}
 			}
 			routesView[i] = views.RouteView{
 				Operations: operationsView,
 			}
 		}
 
+		viaStationsView := make([]views.StationView, 0, len(viaStationsSet))
+		for id := range viaStationsSet {
+			station, err := models.GetStationWithID(db, id)
+			if err != nil {
+				c.AbortWithStatus(http.StatusInternalServerError)
+				log.Printf("get station with ID: %s", err.Error())
+				return
+			}
+			viaStationsView = append(viaStationsView, views.StationView(station))
+		}
+
+		sort.SliceStable(viaStationsView, func(i, j int) bool {
+			return viaStationsView[i].ID < viaStationsView[j].ID
+		})
+
 		// 検索結果リクエストを返却
 		c.JSON(http.StatusOK, views.TransitSearchView{
-			Routes: routesView,
+			Stations: viaStationsView,
+			Routes:   routesView,
 		})
 	}
 }
