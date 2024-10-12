@@ -80,7 +80,7 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 
 		viaStationsView := make([]views.StationView, 0, len(viaStationsSet))
 		for id := range viaStationsSet {
-			station, err := models.GetStationWithID(db, id)
+			station, err := models.GetStationByID(db, id)
 			if err != nil {
 				c.AbortWithStatus(http.StatusInternalServerError)
 				log.Printf("get station with ID: %s", err.Error())

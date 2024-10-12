@@ -2,7 +2,7 @@ package handler
 
 import (
 	"database/sql"
-	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -12,7 +12,7 @@ import (
 )
 
 // 駅IDから駅情報を取得
-func GetStation(db *sql.DB) func(*gin.Context) {
+func GetStationByID(db *sql.DB) func(*gin.Context) {
 	return func(ctx *gin.Context) {
 		id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
 		if err != nil {
@@ -20,7 +20,7 @@ func GetStation(db *sql.DB) func(*gin.Context) {
 			return
 		}
 
-		station, err := models.GetStationWithID(db, uint(id))
+		station, err := models.GetStationByID(db, uint(id))
 		if err != nil {
 			if err == sql.ErrNoRows {
 				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "station Not Found."})
@@ -28,10 +28,28 @@ func GetStation(db *sql.DB) func(*gin.Context) {
 			}
 
 			ctx.AbortWithStatus(http.StatusInternalServerError)
-			fmt.Printf("getstation: %s\n", err.Error())
+			log.Printf("getStationByID: %s", err.Error())
 			return
 		}
 
 		ctx.JSON(http.StatusOK, views.StationView(station))
+	}
+}
+
+// 駅名から検索
+func GetStationsByKeyword(db *sql.DB) func(*gin.Context) {
+	return func(ctx *gin.Context) {
+		stations, err := models.GetStationWithKeyword(db, ctx.Query("keyword"))
+		if err != nil {
+			ctx.AbortWithStatus(http.StatusInternalServerError)
+			log.Printf("getStationByKeyword: %s", err.Error())
+			return
+		}
+
+		stationsView := make([]views.StationView, 0, len(stations))
+		for _, sta := range stations {
+			stationsView = append(stationsView, views.StationView(sta))
+		}
+		ctx.JSON(http.StatusOK, views.StationsView{Stations: stationsView})
 	}
 }

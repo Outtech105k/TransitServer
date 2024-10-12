@@ -5,3 +5,7 @@ type StationView struct {
 	Name    string `json:"name"`
 	EngName string `json:"name_en"`
 }
+
+type StationsView struct {
+	Stations []StationView `json:"stations"`
+}

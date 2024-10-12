@@ -36,7 +36,8 @@ func setupRouter(db *sql.DB) *gin.Engine {
 
 	root := engine.Group("/api/v1/transit")
 	root.POST("/search", handler.SearchTransitHandler(db))
-	root.GET("/station/:id", handler.GetStation(db))
+	root.GET("/station", handler.GetStationsByKeyword(db))
+	root.GET("/station/:id", handler.GetStationByID(db))
 
 	return engine
 }
