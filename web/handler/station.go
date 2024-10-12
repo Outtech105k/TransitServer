@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -27,6 +28,7 @@ func GetStation(db *sql.DB) func(*gin.Context) {
 			}
 
 			ctx.AbortWithStatus(http.StatusInternalServerError)
+			fmt.Printf("getstation: %s\n", err.Error())
 			return
 		}
 

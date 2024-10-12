@@ -24,9 +24,3 @@ type TransitSearchView struct {
 type RouteView struct {
 	Operations []OperationView `json:"operations"`
 }
-
-type StationView struct {
-	ID      uint   `json:"id"`
-	Name    string `json:"name"`
-	EngName string `json:"name_en"`
-}
