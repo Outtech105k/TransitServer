@@ -39,7 +39,7 @@ func GetStationByID(db *sql.DB) func(*gin.Context) {
 // 駅名から検索
 func GetStationsByKeyword(db *sql.DB) func(*gin.Context) {
 	return func(ctx *gin.Context) {
-		stations, err := models.GetStationWithKeyword(db, ctx.Query("keyword"))
+		stations, err := models.GetStationsByKeyword(db, ctx.Query("keyword"))
 		if err != nil {
 			ctx.AbortWithStatus(http.StatusInternalServerError)
 			log.Printf("getStationByKeyword: %s", err.Error())
