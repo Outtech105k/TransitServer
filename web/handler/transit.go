@@ -80,20 +80,29 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 			request.ArriveStationID = &stationCandidates[0].ID
 		}
 
+		// 出発・到着駅IDが異なるか
+		if request.DepartStationID == request.ArriveStationID {
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Departure station ID and arrival station ID must be different."})
+			return
+		}
+
 		// 出発・到着駅IDが存在するか
-		if err := models.CheckExistsStationIDs(db, *request.DepartStationID, *request.ArriveStationID); err != nil {
+		if err := models.CheckExistsStationID(db, *request.DepartStationID); err != nil {
 			if err == models.ErrStationIDsMissing {
 				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: models.ErrStationIDsMissing.Error()})
 			} else {
 				log.Print("checkExistsStationIDs: %w", err)
 				ctx.AbortWithStatus(http.StatusInternalServerError)
-				return
 			}
+			return
 		}
-
-		// 出発・到着駅IDが異なるか
-		if request.DepartStationID == request.ArriveStationID {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Departure station ID and arrival station ID must be different."})
+		if err := models.CheckExistsStationID(db, *request.ArriveStationID); err != nil {
+			if err == models.ErrStationIDsMissing {
+				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: models.ErrStationIDsMissing.Error()})
+			} else {
+				log.Print("checkExistsStationIDs: %w", err)
+				ctx.AbortWithStatus(http.StatusInternalServerError)
+			}
 			return
 		}
 

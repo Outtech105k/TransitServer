@@ -7,27 +7,29 @@ import (
 )
 
 type Station struct {
-	ID      uint
-	Name    string
-	EngName string
+	ID      uint   `db:"id"`
+	Name    string `db:"name"`
+	EngName string `db:"name_en"`
 }
 
+// 駅IDからDB問い合わせをし、駅IDを返す
 func GetStationByID(db *sqlx.DB, id uint) (Station, error) {
 	var station Station
-	err := db.QueryRow(
+	err := db.QueryRowx(
 		`SELECT id, name, name_en FROM stations WHERE id = ?`,
 		id,
-	).Scan(&station.ID, &station.Name, &station.EngName)
+	).StructScan(&station)
 	return station, err
 }
 
+// 駅名から完全一致検索で駅一覧を返す
 func GetStationsByName(db *sqlx.DB, name string) ([]Station, error) {
 	stations := make([]Station, 0, 10)
 	query := `
 SELECT id, name, name_en FROM stations
 WHERE name = ?
 `
-	rows, err := db.Query(query, name)
+	rows, err := db.Queryx(query, name)
 	if err != nil {
 		return nil, fmt.Errorf("executeQuery: %w", err)
 	}
@@ -35,7 +37,7 @@ WHERE name = ?
 
 	for rows.Next() {
 		var s Station
-		if err := rows.Scan(&s.ID, &s.Name, &s.EngName); err != nil {
+		if err := rows.StructScan(&s); err != nil {
 			return nil, fmt.Errorf("scanRecord: %w", err)
 		}
 		stations = append(stations, s)
@@ -43,6 +45,8 @@ WHERE name = ?
 
 	return stations, nil
 }
+
+// キーワードから部分一致検索で駅一覧を返す
 func GetStationsByKeyword(db *sqlx.DB, keyword string) ([]Station, error) {
 	stations := make([]Station, 0, 10)
 	keywordWithQuery := fmt.Sprintf("%%%s%%", keyword)
@@ -50,7 +54,7 @@ func GetStationsByKeyword(db *sqlx.DB, keyword string) ([]Station, error) {
 SELECT id, name, name_en FROM stations
 WHERE name LIKE ? OR name_en LIKE ?
 `
-	rows, err := db.Query(query, keywordWithQuery, keywordWithQuery)
+	rows, err := db.Queryx(query, keywordWithQuery, keywordWithQuery)
 	if err != nil {
 		return nil, fmt.Errorf("executeQuery: %w", err)
 	}
@@ -58,7 +62,7 @@ WHERE name LIKE ? OR name_en LIKE ?
 
 	for rows.Next() {
 		var s Station
-		if err := rows.Scan(&s.ID, &s.Name, &s.EngName); err != nil {
+		if err := rows.StructScan(&s); err != nil {
 			return nil, fmt.Errorf("scanRecord: %w", err)
 		}
 		stations = append(stations, s)

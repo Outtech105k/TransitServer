@@ -114,10 +114,9 @@ func updateTimeWithString(departDateTime time.Time, arriveTimeString string) (ti
 }
 
 // 駅IDの存在チェック(出発駅・到着駅)
-// NOTE: クエリ2つにすべき？
-func CheckExistsStationIDs(db *sqlx.DB, depID, arrID uint) error {
+func CheckExistsStationID(db *sqlx.DB, staID uint) error {
 	var result bool
-	err := db.QueryRow(`SELECT COUNT(*) = 2 FROM stations WHERE id IN (?, ?);`, depID, arrID).Scan(&result)
+	err := db.QueryRow(`SELECT COUNT(*) = 1 FROM stations WHERE id = ?;`, staID).Scan(&result)
 	if err != nil {
 		return err
 	}
