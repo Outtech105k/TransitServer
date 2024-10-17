@@ -1,11 +1,11 @@
 package controllers
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"outtech105.com/transit_server/models"
 )
 
@@ -43,7 +43,7 @@ func (r *Routes) isEmpty() bool {
 }
 
 // 列車の乗り換え案内を検索(出発時刻基準)
-func SearchTransitByDepart(req TransitSearchByDepart, db *sql.DB) ([]Route, error) {
+func SearchTransitByDepart(req TransitSearchByDepart, db *sqlx.DB) ([]Route, error) {
 	reachedRoutes := make(Routes, 0, 10)
 
 	// 出発駅から発車する直近列車を取得

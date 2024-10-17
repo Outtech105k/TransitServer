@@ -1,10 +1,11 @@
 package models
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jmoiron/sqlx"
 )
 
 var (
@@ -21,7 +22,7 @@ type Operation struct {
 }
 
 // 指定駅から発車する列車を取得
-func SearchNextDepartOperations(db *sql.DB, departStationID uint, fastestDepartDateTime time.Time) ([]Operation, error) {
+func SearchNextDepartOperations(db *sqlx.DB, departStationID uint, fastestDepartDateTime time.Time) ([]Operation, error) {
 	fastestDepartDateTimeString := fastestDepartDateTime.Format("15:04:05")
 	sql := `
 SELECT o1.train_id, o1.op_order, o1.dep_sta_id, o1.dep_time, o1.arr_sta_id, o1.arr_time
@@ -114,7 +115,7 @@ func updateTimeWithString(departDateTime time.Time, arriveTimeString string) (ti
 
 // 駅IDの存在チェック(出発駅・到着駅)
 // NOTE: クエリ2つにすべき？
-func CheckExistsStationIDs(db *sql.DB, depID, arrID uint) error {
+func CheckExistsStationIDs(db *sqlx.DB, depID, arrID uint) error {
 	var result bool
 	err := db.QueryRow(`SELECT COUNT(*) = 2 FROM stations WHERE id IN (?, ?);`, depID, arrID).Scan(&result)
 	if err != nil {

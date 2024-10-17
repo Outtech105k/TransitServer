@@ -7,12 +7,13 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 	"outtech105.com/transit_server/models"
 	"outtech105.com/transit_server/views"
 )
 
 // 駅IDから駅情報を取得
-func GetStationByID(db *sql.DB) func(*gin.Context) {
+func GetStationByID(db *sqlx.DB) func(*gin.Context) {
 	return func(ctx *gin.Context) {
 		id, err := strconv.ParseUint(ctx.Param("id"), 10, 64)
 		if err != nil {
@@ -37,7 +38,7 @@ func GetStationByID(db *sql.DB) func(*gin.Context) {
 }
 
 // 駅名から検索
-func GetStationsByKeyword(db *sql.DB) func(*gin.Context) {
+func GetStationsByKeyword(db *sqlx.DB) func(*gin.Context) {
 	return func(ctx *gin.Context) {
 		stations, err := models.GetStationsByKeyword(db, ctx.Query("keyword"))
 		if err != nil {

@@ -1,8 +1,9 @@
 package models
 
 import (
-	"database/sql"
 	"fmt"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type Station struct {
@@ -11,7 +12,7 @@ type Station struct {
 	EngName string
 }
 
-func GetStationByID(db *sql.DB, id uint) (Station, error) {
+func GetStationByID(db *sqlx.DB, id uint) (Station, error) {
 	var station Station
 	err := db.QueryRow(
 		`SELECT id, name, name_en FROM stations WHERE id = ?`,
@@ -20,7 +21,7 @@ func GetStationByID(db *sql.DB, id uint) (Station, error) {
 	return station, err
 }
 
-func GetStationsByName(db *sql.DB, name string) ([]Station, error) {
+func GetStationsByName(db *sqlx.DB, name string) ([]Station, error) {
 	stations := make([]Station, 0, 10)
 	query := `
 SELECT id, name, name_en FROM stations
@@ -42,7 +43,7 @@ WHERE name = ?
 
 	return stations, nil
 }
-func GetStationsByKeyword(db *sql.DB, keyword string) ([]Station, error) {
+func GetStationsByKeyword(db *sqlx.DB, keyword string) ([]Station, error) {
 	stations := make([]Station, 0, 10)
 	keywordWithQuery := fmt.Sprintf("%%%s%%", keyword)
 	query := `

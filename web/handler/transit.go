@@ -1,13 +1,13 @@
 package handler
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 
 	"outtech105.com/transit_server/controllers"
 	"outtech105.com/transit_server/forms"
@@ -16,7 +16,7 @@ import (
 )
 
 // 乗り換え案内を行うハンドラーを返す
-func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
+func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 	return func(ctx *gin.Context) {
 		// リクエストJSONの必要事項解析
 		var request forms.TransitSearchForm
@@ -26,20 +26,20 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 			return
 		}
 
-		// 時刻設定が出発・到着の片方のみであるか (XOR)
-		if (request.DepartDateTime == nil) == (request.ArriveDateTime == nil) {
+		// 時刻設定が出発・到着の片方のみであるか
+		if !IsEitherNil(request.DepartDateTime, request.ArriveDateTime) {
 			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Either the departure time or the arrival time must be set, but not both."})
 			return
 		}
 
-		// 出発駅指定が、ID/名前の片方のみであるか (XOR)
-		if (request.DepartStationID == nil) == (request.DepartStationName == nil) {
+		// 出発駅指定が、ID/名前の片方のみであるか
+		if !IsEitherNil(request.DepartStationID, request.DepartStationName) {
 			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Eithor the departure station id or the departure station name must be set, but not both."})
 			return
 		}
 
-		// 到着駅指定が、ID/名前の片方のみであるか (XOR)
-		if (request.ArriveStationID == nil) == (request.ArriveStationName == nil) {
+		// 到着駅指定が、ID/名前の片方のみであるか
+		if !IsEitherNil(request.ArriveStationID, request.ArriveStationName) {
 			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Eithor the arrive station id or the departure arrive name must be set, but not both."})
 			return
 		}
@@ -59,7 +59,7 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 				return
 			}
 			if len(stationCandidates) != 1 {
-				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "The departure station name entered does not uniquely identify the station. You should specify a station name that can be identified."})
+				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Error resolving departure station name."})
 				return
 			}
 			request.DepartStationID = &stationCandidates[0].ID
@@ -74,7 +74,7 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 				return
 			}
 			if len(stationCandidates) != 1 {
-				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "The arrive station name entered does not uniquely identify the station. You should specify a station name that can be identified."})
+				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Error resolving arrive station name."})
 				return
 			}
 			request.ArriveStationID = &stationCandidates[0].ID
@@ -172,4 +172,8 @@ func SearchTransitHandler(db *sql.DB) func(*gin.Context) {
 			Routes:   routesView,
 		})
 	}
+}
+
+func IsEitherNil[T, U any](x *T, y *U) bool {
+	return (x == nil) != (y == nil)
 }

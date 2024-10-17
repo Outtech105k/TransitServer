@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 	"outtech105.com/transit_server/database"
 	"outtech105.com/transit_server/handler"
 )
@@ -31,7 +31,7 @@ func main() {
 }
 
 // ルーターの設定
-func setupRouter(db *sql.DB) *gin.Engine {
+func setupRouter(db *sqlx.DB) *gin.Engine {
 	engine := gin.Default()
 
 	root := engine.Group("/api/v1/transit")
