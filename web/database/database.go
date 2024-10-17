@@ -1,18 +1,18 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 // MySQL接続処理
-func ConnectDB(MaxRetryCount int) (*sql.DB, error) {
+func ConnectDB(MaxRetryCount int) (*sqlx.DB, error) {
 	for r := 1; r <= MaxRetryCount; r++ {
-		db, err := sql.Open("mysql", fmt.Sprintf(
+		db, err := sqlx.Open("mysql", fmt.Sprintf(
 			"%s:%s@tcp(db:3306)/%s?parseTime=true",
 			os.Getenv("MYSQL_USER"),
 			os.Getenv("MYSQL_PASSWORD"),

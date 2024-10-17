@@ -1,10 +1,11 @@
 package models
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jmoiron/sqlx"
 )
 
 var (
@@ -21,15 +22,13 @@ type Operation struct {
 }
 
 // 指定駅から発車する列車を取得
-func SearchNextDepartOperations(db *sql.DB, departStationID uint, fastestDepartDateTime time.Time) ([]Operation, error) {
+func SearchNextDepartOperations(db *sqlx.DB, departStationID uint, fastestDepartDateTime time.Time) ([]Operation, error) {
 	fastestDepartDateTimeString := fastestDepartDateTime.Format("15:04:05")
 	sql := `
-WITH operation_waits AS (
+SELECT o1.train_id, o1.op_order, o1.dep_sta_id, o1.dep_time, o1.arr_sta_id, o1.arr_time
+FROM operations o1
+INNER JOIN (
 	SELECT train_id, op_order, dep_time,
-	CASE
-		WHEN dep_time >= ? THEN TIMEDIFF(dep_time, ?)
-		ELSE TIMEDIFF(ADDTIME(dep_time, "24:00:00"), ?)
-	END AS wait_time,
 	ROW_NUMBER() OVER (
 		PARTITION BY dep_sta_id, arr_sta_id
 		ORDER BY CASE
@@ -39,20 +38,13 @@ WITH operation_waits AS (
 	) dep_order_arr_grouped
 	FROM operations
 	WHERE dep_sta_id = ?
-)
-SELECT o.train_id, o.op_order, o.dep_sta_id, o.dep_time, o.arr_sta_id, o.arr_time
-FROM operations o
-INNER JOIN operation_waits ow
-ON ow.train_id = o.train_id
-AND ow.op_order = o.op_order
-AND ow.dep_order_arr_grouped = 1
-ORDER BY wait_time
+) o2
+ON o2.train_id = o1.train_id
+AND o2.op_order = o1.op_order
+AND o2.dep_order_arr_grouped = 1
 `
 	rows, err := db.Query(
 		sql,
-		fastestDepartDateTimeString,
-		fastestDepartDateTimeString,
-		fastestDepartDateTimeString,
 		fastestDepartDateTimeString,
 		fastestDepartDateTimeString,
 		fastestDepartDateTimeString,
@@ -122,10 +114,9 @@ func updateTimeWithString(departDateTime time.Time, arriveTimeString string) (ti
 }
 
 // 駅IDの存在チェック(出発駅・到着駅)
-// NOTE: クエリ2つにすべき？
-func CheckExistsStationIDs(db *sql.DB, depID, arrID uint) error {
+func CheckExistsStationID(db *sqlx.DB, staID uint) error {
 	var result bool
-	err := db.QueryRow(`SELECT COUNT(*) = 2 FROM stations WHERE id IN (?, ?);`, depID, arrID).Scan(&result)
+	err := db.QueryRow(`SELECT COUNT(*) = 1 FROM stations WHERE id = ?;`, staID).Scan(&result)
 	if err != nil {
 		return err
 	}

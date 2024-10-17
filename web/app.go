@@ -9,45 +9,68 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 	"outtech105.com/transit_server/database"
 	"outtech105.com/transit_server/handler"
 )
 
 func main() {
-	// DB接続(リトライ10回)
+	// DB接続
 	db, err := database.ConnectDB(10)
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
 
-	// エンドポイント設定
+	// エンドポイントとサーバ起動
+	engine := setupRouter(db)
+	srv := createServer(engine)
+
+	// Graceful Shutdownの処理
+	gracefulShutdown(srv)
+}
+
+// ルーターの設定
+func setupRouter(db *sqlx.DB) *gin.Engine {
 	engine := gin.Default()
 
-	engine.POST("/search", handler.SearchTransitHandler(db))
+	root := engine.Group("/api/v2/transit")
+	root.POST("/search", handler.SearchTransitHandler(db))
+	root.GET("/station", handler.GetStationsByKeyword(db))
+	root.GET("/station/:id", handler.GetStationByID(db))
 
-	// Graceful Shutdownを実装したサーバを起動
-	srv := &http.Server{
+	return engine
+}
+
+// サーバの作成
+func createServer(handler http.Handler) *http.Server {
+	return &http.Server{
 		Addr:    ":80",
-		Handler: engine,
+		Handler: handler,
 	}
+}
 
+// Graceful Shutdownの実装
+func gracefulShutdown(srv *http.Server) {
+	// サーバを別のGoルーチンで起動
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("listen: %s\n", err)
+			log.Panicf("listen: %s\n", err)
 		}
 	}()
 
+	// OSのシグナルを待機
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
 	<-quit
 	log.Println("Shutting down server...")
 
+	// タイムアウトを設定してGraceful Shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:", err)
+		log.Panic("Server forced to shutdown:", err)
 	}
 
 	log.Println("Server exiting")

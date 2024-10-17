@@ -1,17 +1,23 @@
 package controllers
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
-	"outtech105.com/transit_server/forms"
+	"github.com/jmoiron/sqlx"
 	"outtech105.com/transit_server/models"
 )
 
 var (
 	ErrQueueEmpty = errors.New("queue is empty")
 )
+
+type TransitSearchByDepart struct {
+	DepartStationID uint
+	DepartDateTime  time.Time
+	ArriveStationID uint
+}
 
 type Route struct {
 	Operations  []models.Operation `json:"operations"`
@@ -36,12 +42,12 @@ func (r *Routes) isEmpty() bool {
 	return len(*r) == 0
 }
 
-// 列車の乗り換え案内を検索
-func SearchTransit(req forms.TransitSearchForm, db *sql.DB) ([]Route, error) {
+// 列車の乗り換え案内を検索(出発時刻基準)
+func SearchTransitByDepart(req TransitSearchByDepart, db *sqlx.DB) ([]Route, error) {
 	reachedRoutes := make(Routes, 0, 10)
 
 	// 出発駅から発車する直近列車を取得
-	firstOperations, err := models.SearchNextDepartOperations(db, req.DepartStationID, *req.DepartDateTime)
+	firstOperations, err := models.SearchNextDepartOperations(db, req.DepartStationID, req.DepartDateTime)
 	if err != nil {
 		return []Route{}, fmt.Errorf("searchTransit: %w", err)
 	}

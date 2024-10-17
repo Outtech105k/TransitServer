@@ -4,6 +4,10 @@ import "time"
 
 // APIリクエストのレスポンス型
 
+type ErrorView struct {
+	Error string `json:"error"`
+}
+
 type OperationView struct {
 	TrainID         uint      `json:"train_id"`
 	Order           uint      `json:"order"`
@@ -14,7 +18,8 @@ type OperationView struct {
 }
 
 type TransitSearchView struct {
-	Routes []RouteView `json:"routes"`
+	Stations []StationView `json:"stations"`
+	Routes   []RouteView   `json:"routes"`
 }
 
 type RouteView struct {
