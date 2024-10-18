@@ -2,6 +2,7 @@ package forms
 
 import "time"
 
+// 乗換案内探索のリクエストフォーマット
 type TransitSearchForm struct {
 	DepartStationName *string    `json:"depart_station_name"`
 	DepartStationID   *uint      `json:"depart_station_id"`

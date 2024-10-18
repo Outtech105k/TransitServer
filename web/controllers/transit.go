@@ -13,7 +13,8 @@ var (
 	ErrQueueEmpty = errors.New("queue is empty")
 )
 
-type TransitSearchByDepart struct {
+// 出発基準の経路探索パラメータ
+type TransitSearchParamsByDepart struct {
 	DepartStationID uint
 	DepartDateTime  time.Time
 	ArriveStationID uint
@@ -25,11 +26,11 @@ type Route struct {
 }
 
 // RouteのQueue構造とMethods
-type Routes []Route // RouteのQueue構造のための型
-func (r *Routes) enqueue(newRoute Route) {
+type RouteQueue []Route // RouteのQueue構造のための型
+func (r *RouteQueue) enqueue(newRoute Route) {
 	*r = append(*r, newRoute)
 }
-func (r *Routes) dequeue() (Route, error) {
+func (r *RouteQueue) dequeue() (Route, error) {
 	if len(*r) == 0 {
 		return Route{}, ErrQueueEmpty
 	}
@@ -38,13 +39,13 @@ func (r *Routes) dequeue() (Route, error) {
 	*r = (*r)[1:]
 	return route, nil
 }
-func (r *Routes) isEmpty() bool {
+func (r *RouteQueue) isEmpty() bool {
 	return len(*r) == 0
 }
 
 // 列車の乗り換え案内を検索(出発時刻基準)
-func SearchTransitByDepart(req TransitSearchByDepart, db *sqlx.DB) ([]Route, error) {
-	reachedRoutes := make(Routes, 0, 10)
+func SearchTransitByDepart(req TransitSearchParamsByDepart, db *sqlx.DB) ([]Route, error) {
+	reachedRoutes := make([]Route, 0, 10)
 
 	// 出発駅から発車する直近列車を取得
 	firstOperations, err := models.SearchNextDepartOperations(db, req.DepartStationID, req.DepartDateTime)
@@ -53,7 +54,7 @@ func SearchTransitByDepart(req TransitSearchByDepart, db *sqlx.DB) ([]Route, err
 	}
 
 	// 取得結果からルートを生成
-	searchingRouteQueue := make(Routes, 0, 100)
+	searchingRouteQueue := make(RouteQueue, 0, 100)
 	for _, operation := range firstOperations {
 		newRoute := Route{
 			Operations: []models.Operation{operation},
@@ -84,7 +85,7 @@ func SearchTransitByDepart(req TransitSearchByDepart, db *sqlx.DB) ([]Route, err
 		newOperations, err := models.SearchNextDepartOperations(
 			db,
 			lastRoute.Operations[len(lastRoute.Operations)-1].ArriveStationID,
-			lastRoute.Operations[len(lastRoute.Operations)-1].ArriveTime,
+			lastRoute.Operations[len(lastRoute.Operations)-1].ArriveDatetime,
 		)
 		if err != nil {
 			return []Route{}, fmt.Errorf("searchNextOperations: %w", err)

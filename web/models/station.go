@@ -6,13 +6,14 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// DBのstationsスキーマに対応
 type Station struct {
 	ID      uint   `db:"id"`
 	Name    string `db:"name"`
 	EngName string `db:"name_en"`
 }
 
-// 駅IDからDB問い合わせをし、駅IDを返す
+// 駅IDからDB問い合わせをし、駅情報を返す
 func GetStationByID(db *sqlx.DB, id uint) (Station, error) {
 	var station Station
 	err := db.QueryRowx(

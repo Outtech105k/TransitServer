@@ -34,10 +34,10 @@ func main() {
 func setupRouter(db *sqlx.DB) *gin.Engine {
 	engine := gin.Default()
 
-	root := engine.Group("/api/v2/transit")
-	root.POST("/search", handler.SearchTransitHandler(db))
+	root := engine.Group("/api/v2/traffic")
 	root.GET("/station", handler.GetStationsByKeyword(db))
 	root.GET("/station/:id", handler.GetStationByID(db))
+	root.POST("/search", handler.SearchTransitHandler(db))
 
 	return engine
 }
