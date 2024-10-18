@@ -1,7 +1,9 @@
+-- テーブル再生成
 DROP SCHEMA IF EXISTS transit;
 CREATE SCHEMA transit;
 USE transit;
 
+-- stationsテーブル再生成
 DROP TABLE IF EXISTS `stations`;
 CREATE TABLE `stations` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
@@ -10,6 +12,7 @@ CREATE TABLE `stations` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=103 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- trainsテーブル再生成
 DROP TABLE IF EXISTS `trains`;
 CREATE TABLE `trains` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
@@ -18,6 +21,7 @@ CREATE TABLE `trains` (
   UNIQUE KEY `trains_unique` (`name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=102 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- operationsテーブル再生成
 DROP TABLE IF EXISTS `operations`;
 CREATE TABLE `operations` (
   `train_id` int unsigned NOT NULL,

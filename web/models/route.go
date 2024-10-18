@@ -12,18 +12,22 @@ var (
 	ErrStationIDsMissing = errors.New("invalid station ID")
 )
 
+// 列車での1区間移動に対応する構造体
 type Operation struct {
 	TrainID         uint      `json:"train_id"`
 	Order           uint      `json:"order"`
 	DepartStationID uint      `json:"depart_station_id"`
-	DepartTime      time.Time `json:"depart_time"`
+	DepartDatetime  time.Time `json:"depart_time"`
 	ArriveStationID uint      `json:"arrive_station_id"`
-	ArriveTime      time.Time `json:"arrive_time"`
+	ArriveDatetime  time.Time `json:"arrive_time"`
 }
 
-// 指定駅から発車する列車を取得
-func SearchNextDepartOperations(db *sqlx.DB, departStationID uint, fastestDepartDateTime time.Time) ([]Operation, error) {
-	fastestDepartDateTimeString := fastestDepartDateTime.Format("15:04:05")
+// 指定駅から指定時間以降に発車する列車を取得
+// NOTE: 取得は、その駅からの次停車駅を基準にグループ化され、待ち時間が最も短いもののみが取得される
+// NOTE: 「乗換回数が少ないルート」といった基準では取得できない(UNIONでいけるか？)
+// NOTE: sqlxのNamedQueryはなぜか使えなかった(SQLパースエラー)
+func SearchNextDepartOperations(db *sqlx.DB, departStationID uint, fastestDepartDatetime time.Time) ([]Operation, error) {
+	fastestDepartDatetimeString := fastestDepartDatetime.Format("15:04:05")
 	sql := `
 SELECT o1.train_id, o1.op_order, o1.dep_sta_id, o1.dep_time, o1.arr_sta_id, o1.arr_time
 FROM operations o1
@@ -45,9 +49,9 @@ AND o2.dep_order_arr_grouped = 1
 `
 	rows, err := db.Query(
 		sql,
-		fastestDepartDateTimeString,
-		fastestDepartDateTimeString,
-		fastestDepartDateTimeString,
+		fastestDepartDatetimeString,
+		fastestDepartDatetimeString,
+		fastestDepartDatetimeString,
 		departStationID,
 	)
 	if err != nil {
@@ -61,18 +65,20 @@ AND o2.dep_order_arr_grouped = 1
 		arriveTimeString string
 	)
 
+	// 移動先の候補を取得
+	// NOTE: たとえ逆方向でも情報が取得される
 	for rows.Next() {
 		err := rows.Scan(&op.TrainID, &op.Order, &op.DepartStationID, &departTimeString, &op.ArriveStationID, &arriveTimeString)
 		if err != nil {
 			return []Operation{}, err
 		}
 
-		op.DepartTime, err = updateTimeWithString(fastestDepartDateTime, departTimeString)
+		// DBは時刻の文字列を返すので、fastestDepartDatetime < departDatetime < arriveDatetime の順になるように変換・調整
+		op.DepartDatetime, err = timeString2DatetimeForward(fastestDepartDatetime, departTimeString)
 		if err != nil {
 			return []Operation{}, fmt.Errorf("updateDepartTimeString: %w", err)
 		}
-
-		op.ArriveTime, err = updateTimeWithString(op.DepartTime, arriveTimeString)
+		op.ArriveDatetime, err = timeString2DatetimeForward(op.DepartDatetime, arriveTimeString)
 		if err != nil {
 			return []Operation{}, fmt.Errorf("updateArriveTimeString: %w", err)
 		}
@@ -84,39 +90,39 @@ AND o2.dep_order_arr_grouped = 1
 }
 
 // 順移動探索における到着時刻の変換(string -> time.Time)
-func updateTimeWithString(departDateTime time.Time, arriveTimeString string) (time.Time, error) {
-	// 到着時刻をTime型に変換(日時はデフォルト値)
-	arriveTime, err := time.Parse("15:04:05", arriveTimeString)
+func timeString2DatetimeForward(fasterDatetime time.Time, laterTimeString string) (time.Time, error) {
+	laterTime, err := time.Parse("15:04:05", laterTimeString)
 	if err != nil {
 		return time.Time{}, err
 	}
 
-	// 出発日を基に、到着日時を設定
-	arriveDateTime := time.Date(
-		departDateTime.Year(),
-		departDateTime.Month(),
-		departDateTime.Day(),
-		arriveTime.Hour(),         // 時刻部分を置き換え
-		arriveTime.Minute(),       // 分部分を置き換え
-		arriveTime.Second(),       // 秒部分を置き換え
-		0,                         // ナノ秒は0に設定
-		departDateTime.Location(), // タイムゾーンも元のものを使用
+	// まず、fasterDatetimeとlaterDatetimeが同日前提で変換する
+	laterDatetime := time.Date(
+		fasterDatetime.Year(),
+		fasterDatetime.Month(),
+		fasterDatetime.Day(),
+		laterTime.Hour(),
+		laterTime.Minute(),
+		laterTime.Second(),
+		0,
+		fasterDatetime.Location(),
 	)
 
-	// 出発日時より到着日時が後になるべきだが、日付を跨いでいる場合は時系列が逆転している
-	// その場合、到着日を1日後送りにすることで、日付を跨いだ運行・乗り換えを可能とする
-	// ただし、DB側が24時間を超える運転をしないことを前提とする
-	if departDateTime.After(arriveDateTime) {
-		arriveDateTime = arriveDateTime.AddDate(0, 0, 1)
+	// 出発日時より到着日時が後になるべき
+	// laterDatetime < fasterDatetime の場合、1日後送りにする
+	// これにより、日付を跨いだ運行・乗り換えを可能とする
+	// NOTE: DB側が24時間を超える運転をしないことを前提とする
+	if fasterDatetime.After(laterDatetime) {
+		laterDatetime = laterDatetime.AddDate(0, 0, 1)
 	}
 
-	return arriveDateTime, nil
+	return laterDatetime, nil
 }
 
-// 駅IDの存在チェック(出発駅・到着駅)
+// 駅IDの存在チェック
 func CheckExistsStationID(db *sqlx.DB, staID uint) error {
 	var result bool
-	err := db.QueryRow(`SELECT COUNT(*) = 1 FROM stations WHERE id = ?;`, staID).Scan(&result)
+	err := db.QueryRow(`SELECT EXISTS(SELECT * FROM stations WHERE id = ?)`, staID).Scan(&result)
 	if err != nil {
 		return err
 	}

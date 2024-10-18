@@ -15,10 +15,10 @@ import (
 	"outtech105.com/transit_server/views"
 )
 
-// 乗り換え案内を行うハンドラーを返す
+// 乗換案内探索
 func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 	return func(ctx *gin.Context) {
-		// リクエストJSONの必要事項解析
+		// リクエストJSONのパラメータ解析
 		var request forms.TransitSearchForm
 		if err := ctx.ShouldBindJSON(&request); err != nil {
 			log.Printf("Error binding JSON in SearchTransit: %v", err)
@@ -34,13 +34,13 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 
 		// 出発駅指定が、ID/名前の片方のみであるか
 		if !IsEitherNil(request.DepartStationID, request.DepartStationName) {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Eithor the departure station id or the departure station name must be set, but not both."})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Eithor the departure station name or the departure station id must be set, but not both."})
 			return
 		}
 
 		// 到着駅指定が、ID/名前の片方のみであるか
 		if !IsEitherNil(request.ArriveStationID, request.ArriveStationName) {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Eithor the arrive station id or the departure arrive name must be set, but not both."})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Eithor the arrive station name or the arrive station id must be set, but not both."})
 			return
 		}
 
@@ -89,7 +89,7 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 		// 出発・到着駅IDが存在するか
 		if err := models.CheckExistsStationID(db, *request.DepartStationID); err != nil {
 			if err == models.ErrStationIDsMissing {
-				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: models.ErrStationIDsMissing.Error()})
+				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Invalid depart station ID."})
 			} else {
 				log.Print("checkExistsStationIDs: %w", err)
 				ctx.AbortWithStatus(http.StatusInternalServerError)
@@ -98,7 +98,7 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 		}
 		if err := models.CheckExistsStationID(db, *request.ArriveStationID); err != nil {
 			if err == models.ErrStationIDsMissing {
-				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: models.ErrStationIDsMissing.Error()})
+				ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Invalid arrive station ID."})
 			} else {
 				log.Print("checkExistsStationIDs: %w", err)
 				ctx.AbortWithStatus(http.StatusInternalServerError)
@@ -106,7 +106,7 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 			return
 		}
 
-		// 読み込んだ時刻をJSTに設定
+		// 読み込んだ時刻をJSTに変換(DBがJSTのため)
 		jst, err := time.LoadLocation("Asia/Tokyo")
 		if err != nil {
 			log.Printf("Error loading location: %v", err)
@@ -120,9 +120,9 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 			*request.ArriveDateTime = (*request.ArriveDateTime).In(jst)
 		}
 
-		// 出発時刻を中心に乗換探索
+		// 出発時刻を基準に乗換探索
 		routes, err := controllers.SearchTransitByDepart(
-			controllers.TransitSearchByDepart{
+			controllers.TransitSearchParamsByDepart{
 				DepartStationID: *request.DepartStationID,
 				DepartDateTime:  *request.DepartDateTime,
 				ArriveStationID: *request.ArriveStationID,
@@ -137,15 +137,15 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 
 		// 到着時刻順にソート
 		sort.SliceStable(routes, func(i, j int) bool {
-			return routes[i].Operations[len(routes[i].Operations)-1].ArriveTime.Before(
-				routes[j].Operations[len(routes[j].Operations)-1].ArriveTime,
+			return routes[i].Operations[len(routes[i].Operations)-1].ArriveDatetime.Before(
+				routes[j].Operations[len(routes[j].Operations)-1].ArriveDatetime,
 			)
 		})
 
 		// 結果を5件以下に制限
 		routes = routes[0:min(len(routes), 5)]
 
-		// 検索結果をレスポンス構造体に代入
+		// 検索結果をroutesViewにセット
 		viaStationsSet := make(map[uint]struct{})
 		routesView := make([]views.RouteView, len(routes))
 		for i, route := range routes {
@@ -160,6 +160,7 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 			}
 		}
 
+		// 経由駅一覧をDB問い合わせの上、viaStationViewにセット・昇順ソート
 		viaStationsView := make([]views.StationView, 0, len(viaStationsSet))
 		for id := range viaStationsSet {
 			station, err := models.GetStationByID(db, id)
@@ -170,7 +171,6 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 			}
 			viaStationsView = append(viaStationsView, views.StationView(station))
 		}
-
 		sort.SliceStable(viaStationsView, func(i, j int) bool {
 			return viaStationsView[i].ID < viaStationsView[j].ID
 		})
