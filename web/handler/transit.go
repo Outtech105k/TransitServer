@@ -26,21 +26,15 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 			return
 		}
 
-		// 時刻設定が出発・到着の片方のみであるか
-		if !IsEitherNil(request.DepartDateTime, request.ArriveDateTime) {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Either the departure time or the arrival time must be set, but not both."})
-			return
-		}
-
-		// 出発駅指定が、ID/名前の片方のみであるか
-		if !IsEitherNil(request.DepartStationID, request.DepartStationName) {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Eithor the departure station name or the departure station id must be set, but not both."})
-			return
-		}
-
-		// 到着駅指定が、ID/名前の片方のみであるか
-		if !IsEitherNil(request.ArriveStationID, request.ArriveStationName) {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: "Eithor the arrive station name or the arrive station id must be set, but not both."})
+		// 以下のパラメータの組について、片方だけセットされているか
+		if !AbortIfExclusiveFieldsConflict(
+			ctx, request,
+			[][2]string{
+				{"depart_datetime", "arrive_datetime"},       // 出発時刻・到着時刻
+				{"depart_station_id", "depart_station_name"}, // 出発駅ID・駅名
+				{"arrive_station_id", "arrive_station_name"}, // 到着駅ID・駅名
+			},
+		) {
 			return
 		}
 
@@ -185,4 +179,15 @@ func SearchTransitHandler(db *sqlx.DB) func(*gin.Context) {
 
 func IsEitherNil[T, U any](x *T, y *U) bool {
 	return (x == nil) != (y == nil)
+}
+
+// 指定JSONキーペアの片方のみがセットされているかを検証する
+func AbortIfExclusiveFieldsConflict(ctx *gin.Context, request forms.TransitSearchForm, fieldPairs [][2]string) bool {
+	for _, pair := range fieldPairs {
+		if ok, errorMsg := models.CheckExclusiveParams(request, pair[0], pair[1]); !ok {
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, views.ErrorView{Error: errorMsg})
+			return false
+		}
+	}
+	return true
 }

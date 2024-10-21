@@ -80,9 +80,9 @@
         "depart_datetime": "2024-10-10T14:30:00+09:00"
     }
     ```
-    - 出発駅指定 `depart_station_name`/`depart_station_id`のどちらか片方を指定します。
-    - 到着駅指定 `arrive_station_name`/`arrive_station_id`のどちらか片方を指定します。
-    - 出発・到着日時指定 `depart_datetime`/`arrive_datetime`のどちらか片方をISO8601で指定します。タイムゾーンは、自動で日本標準時(JST)に変換されます。
+    - 出発駅指定 `depart_station_name`/`depart_station_id` のどちらか片方を指定します。
+    - 到着駅指定 `arrive_station_name`/`arrive_station_id` のどちらか片方を指定します。
+    - 出発・到着日時指定 `depart_datetime`/`arrive_datetime` のどちらか片方をISO8601形式で指定します。タイムゾーンは、自動で日本標準時(JST)に変換されます。
 
 - Responses
     - 200 OK
@@ -121,10 +121,8 @@
         | Status code | error | 説明 |
         |-------------|-------|------|
         | 400 | Parameters are missing. | 必要なJSONパラメータが与えられていません。 |
-        | 400 | Either the departure time or the arrival time must be set, but not both. | `depart_datetime`/`arrive_datetime`の両方が指定されているか、まったく指定されていません。 |
-        | 400 | Eithor the departure station name or the departure station id must be set, but not both. | `depart_station_name`/`depart_station_id`の両方が指定されているか、まったく指定されていません。 |
-        | 400 | Eithor the arrive station name or the arrive station id must be set, but not both. | `arrive_station_name`/`arrive_station_id`の両方が指定されているか、まったく指定されていません。 |
-        | 400 | Eithor the arrive station name or the arrive station id must be set, but not both. | 一時的な問題です。到着時刻を指定した経路探索がメンテナンス中のため、利用できません。(今後対処予定です。) |
+        | 400 | Either \`X\` or \`Y\` must be set, but not both. | JSONのパラメータ \`X\`/\`Y\`の両方が指定されているか、まったく指定されていません。(X, Y は任意のキー) |
+        | 400 | Only Depart Time Setting (on maintenance). | 一時的な問題です。到着時刻を指定した経路探索がメンテナンス中のため、利用できません。(今後対処予定です。) |
         | 400 | Error resolving departure station name. | `depart_station_name`の名前解決に失敗しました。指定された駅が存在しないか、複数候補が存在します。 |
         | 400 | Error resolving arrive station name. | `arrive_station_name`の名前解決に失敗しました。指定された駅が存在しないか、複数候補が存在します。 |
         | 400 | Departure station ID and arrival station ID must be different. | 出発駅と到着駅は異なっている必要があります。 |
@@ -133,7 +131,9 @@
 
 ## API Sample
 
-[サンプルページ](https://outtech105.com/api/v2/traffic/)でリクエスト可能です。(メンテナンス中等、接続できない場合もあります)
+[サンプルページ](https://outtech105.com/api/v2/traffic/)でリクエスト可能です。
+- エンドポイントを各自で設定してください。
+- メンテナンス中等、接続できない場合もあります。(Cloudflareの502エラーなど)
 
 ## Author
 

@@ -7,6 +7,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"outtech105.com/transit_server/logger"
 )
 
 // MySQL接続処理(maxRetryCountだけ試行)
@@ -25,7 +26,7 @@ func ConnectDB(maxRetryCount int) (*sqlx.DB, error) {
 		// DB接続が確立されたら離脱
 		err = db.Ping()
 		if err == nil {
-			fmt.Println("DB connection successful")
+			logger.Logger.Info("DB connnection successful")
 			return db, nil
 		}
 

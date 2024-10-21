@@ -12,9 +12,13 @@ import (
 	"github.com/jmoiron/sqlx"
 	"outtech105.com/transit_server/database"
 	"outtech105.com/transit_server/handler"
+	"outtech105.com/transit_server/logger"
 )
 
 func main() {
+	// ロガー生成
+	logger.InitLogger()
+
 	// DB接続
 	db, err := database.ConnectDB(10)
 	if err != nil {
